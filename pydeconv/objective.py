@@ -19,8 +19,7 @@ def steepest_descent(func, X0, grad, maxiter = 100, verbose = False, gtol = 1e-5
     alpha_0 = 1.0
     gnorm = np.abs(g).max()
     iter = 0
-    print_info(iter, f, gnorm)
-    
+    if verbose: print_info(iter, f, gnorm)
     while True:
         iter +=1
         func_ = func_one(X,-g)
@@ -30,8 +29,8 @@ def steepest_descent(func, X0, grad, maxiter = 100, verbose = False, gtol = 1e-5
         f = fopt
         g = grad(X)
         gnorm = np.abs(g).max()
+        #if (iter%5) == 0: imshow(X.reshape(500,500).clip(0,np.inf))
         if verbose: print_info(iter,f,gnorm)
-
         if gnorm < gtol :
             if verbose:
                 print "gradient convergence reached"
@@ -40,7 +39,6 @@ def steepest_descent(func, X0, grad, maxiter = 100, verbose = False, gtol = 1e-5
             if verbose:
                 print "maximum number of iterations reached"
             break
-    
     return X
 
 class ObjFunc(object):
@@ -232,13 +230,12 @@ class ObjFunc(object):
             if verbose:
                 def callback(X):
                     print "objective:",self._eval_XL(X), "||grad||_inf:", np.abs(self._eval_grad_XL(X)).max()
-                    imshow(self.X_to_L(X).clip(0,np.inf))
             else:
                 callback = None
         
             Xopt = fmin_cg(self._eval_XL, X0, self._eval_grad_XL, callback=callback, **args)
         else:
-            Xopt = steepest_descent(self._eval_XL, X0, self._eval_grad_XL, verbose, **args)
+            Xopt = steepest_descent(self._eval_XL, X0, self._eval_grad_XL, verbose=verbose, **args)
 
         Lopt = self.X_to_L(Xopt)
         self.set_latent(Lopt)
