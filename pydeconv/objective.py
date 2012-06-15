@@ -30,7 +30,6 @@ def steepest_descent(func, X0, grad, maxiter = 100, verbose = False, gtol = 1e-5
         f = fopt
         g = grad(X)
         gnorm = np.abs(g).max()
-        print "here"
         if verbose: print_info(iter,f,gnorm)
 
         if gnorm < gtol :
