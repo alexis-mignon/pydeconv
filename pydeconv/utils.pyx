@@ -29,6 +29,38 @@ cdef np.ndarray check_output(tuple shape, np.ndarray output, bint init=False):
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
+def project_simplex(np.ndarray y):
+    """ project a vector on the unit simplex
+    """
+    cdef :
+        int i
+        double ti = 0.0
+        double cumyi = 0.0
+        int n = y.shape[0]
+        np.ndarray y_ = y.flatten()
+        np.ndarray isort
+        np.ndarray[np.float_t, ndim=1] ysort
+        bint ok
+        
+    isort = y_.argsort()[::-1]
+    ysort = y_[isort]
+    ok = False
+    
+    for i in range(n-1):
+        cumyi+= ysort[i]
+        ti = (cumyi - 1)/(i+1)
+        if ti >= ysort[i+1]:
+            ok = True
+            break
+    
+    if not ok:
+        ti = (cumyi + ysort[n-1] - 1)/n
+
+    return (y-ti).clip(0,np.inf)
+        
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True)
 def convolve2d(np.ndarray[np.float_t, ndim=2] input,
         np.ndarray[np.float_t, ndim=2] kernel,
         np.ndarray[np.float_t, ndim=2] output=None):
@@ -262,7 +294,6 @@ def global_prior(np.ndarray[np.float_t, ndim=2] dL, double a):
         for j in range(m):
             r += _log_phi(dL[i,j], a)
     return r
-
     
 @cython.boundscheck(False)
 @cython.wraparound(False)
