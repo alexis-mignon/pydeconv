@@ -29,14 +29,14 @@ cdef np.ndarray check_output(tuple shape, np.ndarray output, bint init=False):
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
-def project_simplex(np.ndarray y):
+def project_simplex(np.ndarray y, double norm=1.0):
     """ project a vector on the unit simplex
     """
     cdef :
         int i
         double ti = 0.0
         double cumyi = 0.0
-        int n = y.shape[0]
+        int n = y.size
         np.ndarray y_ = y.flatten()
         np.ndarray isort
         np.ndarray[np.float_t, ndim=1] ysort
@@ -48,13 +48,13 @@ def project_simplex(np.ndarray y):
     
     for i in range(n-1):
         cumyi+= ysort[i]
-        ti = (cumyi - 1)/(i+1)
+        ti = (cumyi - norm)/(i+1)
         if ti >= ysort[i+1]:
             ok = True
             break
     
     if not ok:
-        ti = (cumyi + ysort[n-1] - 1)/n
+        ti = (cumyi + ysort[n-1] - norm)/n
 
     return (y-ti).clip(0,np.inf)
         
@@ -76,7 +76,7 @@ def convolve2d(np.ndarray[np.float_t, ndim=2] input,
         int i,j,k,l,ii,jj
         double oij
         int hKk = nKk//2  # used to center the kernel
-        int hKl = nKk//2  # used to center the kernel
+        int hKl = nKl//2  # used to center the kernel
 
     output = check_output((<object>input).shape, output, False)
     
