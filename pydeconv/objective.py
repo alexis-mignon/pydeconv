@@ -3,18 +3,6 @@ from scipy.optimize import fmin_cg, brent
 from scipy.misc import imshow
 import utils
 
-def check_input_dim(X):
-    if X.ndim == 2:
-        return X[...,np.newaxis]
-    else:
-        return X
-
-def check_output_dim(X):
-    if X.ndim == 3 and X.shape[2] == 1:
-        return X[...,0]
-    else:
-        return X
-
 def steepest_descent(func, X0, grad, maxiter = 100, verbose = False, project=None, alpha_0=1.0, gtol = 1e-5,  **args):
     def func_one(X,dir_):
         def inner(alpha):
@@ -81,7 +69,7 @@ def steepest_descent(func, X0, grad, maxiter = 100, verbose = False, project=Non
     return X
 
 class ObjFunc(object):
-    def __init__(self, I0, w0, lambda1, lambda2,  a=1.0, b=3.0, cutoff = 1e-6, t=5):
+    def __init__(self, I0, w0, lambda1=1e-3, lambda2=10.,  a=1.0, b=3.0, cutoff = 1e-6, t=5):
         self.w0 = w0
         self.w1 = self.w0/2
         self.w2 = self.w1/4
@@ -93,15 +81,15 @@ class ObjFunc(object):
         self.b = b
         self.cutoff = cutoff
 
-        self.I0 = check_input_dim(I0)
+        self.I0 = I0
         self.I0_sum = self.I0.sum(0).sum(0)
-        print "here init"
+        
         self._dxI0 = utils.dx(self.I0)
         self._dyI0 = utils.dy(self.I0)
         self._dxxI0 = utils.dx_b(self._dxI0)
         self._dyyI0 = utils.dy_b(self._dyI0)
         self._dxyI0 = utils.dx_b(self._dyI0)
-        print "here init"
+        
         self._dxL = np.zeros(self.I0.shape)
         self._dyL = np.zeros(self.I0.shape)
         self._dxxL = np.zeros(self.I0.shape)
@@ -127,7 +115,9 @@ class ObjFunc(object):
             var_k = np.ones(self._P.shape)/self._P.size
             I0_m = utils.convolve2d(self.I0, var_k)
             I02_m = utils.convolve2d(self.I0**2, var_k)
-            var = (I02_m - I0_m**2).mean(-1)
+            var = (I02_m - I0_m**2)
+            if var.ndim == 3:
+                var = I02_m.mean(-1)
             self._M = (var < self.t*self.t).astype("uint8")
             print "smooth parts", self._M.mean()
         return self._M
@@ -144,21 +134,21 @@ class ObjFunc(object):
 
     def projectL(self, L):
         if L.ndim == 3:
+            pL = np.zeros(L.shape,"float")
             for i in range(L.shape[2]):
-                L[...,i] = utils.project_simplex(L[...,i], self.I0_sum[i])
+                pL[...,i] = utils.project_simplex(L[...,i], self.I0_sum[i])
+            return pL
         else:
+            print self.I0_sum
             return utils.project_simplex(L, self.I0_sum)
 
     def __call__(self, L, P, psf_only=False):
-        L = check_input_dim(L)
         # compute
         utils.convolve2d(L, P, output=self._J)
         utils.dx(self._J, output=self._dxJ)
         utils.dy(self._J, output=self._dyJ)
-        
         utils.dx(L, output=self._dxL)
         utils.dy(L, output=self._dyL)
-        
         utils.dx_b(self._dxJ, output=self._dxxJ)
         utils.dy_b(self._dyJ, output=self._dyyJ)
         utils.dx_b(self._dyJ, output=self._dxyJ)
@@ -170,7 +160,7 @@ class ObjFunc(object):
         dxxR = self._dxxJ - self._dxxI0
         dyyR = self._dyyJ - self._dyyI0
         dxyR = self._dxyJ - self._dxyI0
-        
+
         E = self.w0 * utils.norm2(R)
         E += self.w1 * utils.norm2(dxR)
         E += self.w1 * utils.norm2(dyR)
@@ -189,7 +179,6 @@ class ObjFunc(object):
         return E/self.I0.size
 
     def grad_L(self, L, P):
-        L = check_input_dim(L)
         # compute
         utils.convolve2d(L, P, output=self._J)
         utils.dx(self._J, self._dxJ)
@@ -235,7 +224,6 @@ class ObjFunc(object):
         return (dL - dL.mean()) /self.I0.size 
         
     def grad_P(self, L, P):
-        L = check_input_dim(L)
         # compute
         utils.convolve2d(L, P ,output=self._J)
         utils.dx(self._J, self._dxJ)
@@ -297,6 +285,12 @@ class ObjFunc(object):
             raise ValueError("the latent image is not set")
         return self.grad_P(self._L, P)        
 
+    def projectXL(self, X):
+        return self.L_to_X(self.projectL(self.X_to_L(X)))
+    
+    def projectXP(self, X):
+        return utils.project_simplex(X)
+
     def X_to_P(self, X):
         return X.reshape(self._P.shape)
 
@@ -322,7 +316,6 @@ class ObjFunc(object):
         return self.L_to_X(self.eval_grad_L(self.X_to_L(X)))
 
     def optimize_latent(self, L0=None, method="gd", verbose=True, **args):
-        print "here"
         if L0 is not None:
             self.set_latent(L0)
         else:
@@ -338,11 +331,10 @@ class ObjFunc(object):
         
             Xopt = fmin_cg(self._eval_XL, X0, self._eval_grad_XL, callback=callback, **args)
         else:
-            print "here"
-            Xopt = steepest_descent(self._eval_XL, X0, self._eval_grad_XL, project=self.projectL, verbose=verbose, **args)
+            Xopt = steepest_descent(self._eval_XL, X0, self._eval_grad_XL, project=self.projectXL, verbose=verbose, **args)
 
         Lopt = self.X_to_L(Xopt)
-        return check_output_dim(Lopt)
+        return Lopt
 
     def optimize_psf(self, P0=None, method="gd", verbose=True, **args):
         if P0 is not None:
@@ -360,7 +352,7 @@ class ObjFunc(object):
         
             Xopt = fmin_cg(self._eval_XP, X0, self._eval_grad_XP, callback=callback, **args)
         else:
-            Xopt = steepest_descent(self._eval_XP, X0, self._eval_grad_XP, project=self.projectP, verbose=verbose, **args)
+            Xopt = steepest_descent(self._eval_XP, X0, self._eval_grad_XP, project=self.projectXP, verbose=verbose, **args)
         
         Popt = self.X_to_P(Xopt)
         return Popt
