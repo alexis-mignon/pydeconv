@@ -31,13 +31,15 @@ cdef double _dlog_phi(double x, double a, double b):
 cdef np.ndarray check_output(tuple shape, np.ndarray output, bint init=False):
     if output is None:
         output = np.zeros(shape,'float')
-    elif len(shape) != output.ndim or \
+    else:
+        if len(shape) != output.ndim or \
          shape[0] != output.shape[0] or \
          shape[1] != output.shape[1] or \
          (output.ndim == 3 and shape[2] != output.shape[2]):
             raise ValueError("Shapes mismatch")
-    elif init :
-        output[:,:] = 0.0
+            
+        if init :
+            output[:,:] = 0.0
     return output
 
 def check_input_dim(np.ndarray input):
@@ -108,7 +110,7 @@ def convolve2d(np.ndarray input,
         int hKl = nKl//2  # used to center the kernel
 
     
-    output = check_output((<object>input_).shape, output, False)
+    output = check_output((<object>input).shape, output, False)
     output_ = check_input_dim(output)
 
     for c in range(nc):

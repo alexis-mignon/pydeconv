@@ -139,7 +139,6 @@ class ObjFunc(object):
                 pL[...,i] = utils.project_simplex(L[...,i], self.I0_sum[i])
             return pL
         else:
-            print self.I0_sum
             return utils.project_simplex(L, self.I0_sum)
 
     def __call__(self, L, P, psf_only=False):
